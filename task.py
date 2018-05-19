@@ -28,7 +28,19 @@ class Task():
 
     def get_reward(self):
         """Uses current pose of sim to return reward."""
-        reward = 1.-.3*(abs(self.sim.pose[:3] - self.target_pos)).sum()
+        reward = self.sim.pose[2] # reward is the height in z-axis
+#         reward = max(-1, min(reward, 1)) # clamp value between -1 and 1
+        
+        # reward more if it reaches closer to the target
+        if (self.sim.pose[2]-self.target_pos[2]) != 0:
+            reward += 1.0/abs(self.sim.pose[2] - self.target_pos[2])
+        
+        # negative reward to stabilize xy 
+        reward -= 2*(abs(self.sim.pose[:2] - self.target_pos[:2])).sum()
+        
+        # negative reward to angular velocity stabilization
+        reward -= 2*(abs(self.sim.angular_v[:3])).sum()
+        reward = max(-1, min(reward, 1)) # clamp value between -1 and 1
         return reward
 
     def step(self, rotor_speeds):
@@ -39,6 +51,9 @@ class Task():
             done = self.sim.next_timestep(rotor_speeds) # update the sim pose and velocities
             reward += self.get_reward() 
             pose_all.append(self.sim.pose)
+            if self.sim.pose[2] >= self.target_pos[2]:
+                reward += 100
+                done = True
         next_state = np.concatenate(pose_all)
         return next_state, reward, done
 
